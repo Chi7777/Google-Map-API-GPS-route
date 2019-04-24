@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="zh-tw">
+
+<head>
+  <meta charset="UTF-8">
+  <title>Google Maps API demo</title>
+  <style>
+    html,
+    body {
+      height: 100%;
+      width: 100%;
+      margin: 0;
+      padding: 0;
+    }
+
+    #map {
+      height: calc(50% - 50px);
+      width: 50%;
+      background: #000;
+      margin: 30px 0 0;
+      box-sizing: border-box;
+    }
+
+    #map2 {
+      height: calc(100% - 50px);
+      width: 100%;
+      background: #000;
+      margin: 30px 0 0;
+      box-sizing: border-box;
+    }
+
+    #box {
+      height: 20px;
+      margin: 0;
+      box-sizing: border-box;
+      padding: 10px;
+    }
+
+    #address {
+      width: 200px;
+      margin-right: 5px;
+    }
+  </style>
+</head>
+
+<body>
+  <div id="box">
+    <input type="text" id="addressFrom" onchange="search(this)" onfocus="search(this)">
+    <div id="latlngFrom">lng,lat</div>
+  </div>
+  <div id="map"></div>
+  <div id="box">
+    <input type="text" id="addressTo" onchange="search(this)" onfocus="search(this)">
+    <div id="latlngTo">lng,lat</div>
+  </div>
+  <button style="margin: 10%" onclick="route()">路線規劃GO!</button>
+  <div id="msg"></div>
+  <footer>
+    <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyC8m6qlaMd17xPEP0wjOWzFhLjm-8Hejks&callback=initMap"
+      async defer></script>
+    <script src="https://code.jquery.com/jquery-1.10.2.min.js"></script>
+    <script>
+      window.sessionStorage['session'] = "addressFrom";
+      var map, marker, lat, lng, geocoder, directionsService, directionsDisplay;
+      var tester;
+      // 載入定位服務
+      var geolocation = 'https://www.googleapis.com/geolocation/v1/geolocate?key=AIzaSyC8m6qlaMd17xPEP0wjOWzFhLjm-8Hejks';
+      function initMap() {
+        geocoder = new google.maps.Geocoder();
+        // 載入路線服務與路線顯示圖層
+        directionsService = new google.maps.DirectionsService();
+        directionsDisplay = new google.maps.DirectionsRenderer();
+        navigator.geolocation.getCurrentPosition((position) => {
+          console.log(position.coords);
+          lat = position.coords.latitude;
+          lng = position.coords.longitude;
+          // 初始化地圖
+          map = new google.maps.Map(document.getElementById('map'), {
+            zoom: 16,
+            center: { lat: lat, lng: lng }
+          });
+          marker = new google.maps.Marker({
+            position: { lat: lat, lng: lng },
+            map: map,
+            draggable: true
+          });
+          getwhere(lat, lng, marker);
+          // 地圖點拖曳事件
+          marker.addListener('dragend',function(){
+            getwhere(marker.position.lat(), marker.position.lng(), marker);
+          })
+          // google.maps.event.addListener(marker, 'dragend', function (MouseEvent) {
+            // getwhere(marker.position.lat(), marker.position.lng(), marker);
+          // });
+        });
+      }
+      function search(address) {
+        window.sessionStorage["session"] = address.id;
+        console.log(address);
+        console.log(address.value);
+        geocoder.geocode({
+          'address': address.value
+        }, function (results, status) {
+          if (status == 'OK') {
+            map.setCenter(results[0].geometry.location);
+            marker.setPosition(results[0].geometry.location);
+            if (results) {
+              console.log(results);
+              showAddressOfResult(address, results[0], marker);
+              lat = marker.position.lat();
+              lng = marker.position.lng();
+              document.getElementById("latlng" + window.sessionStorage["session"].substr(7, 4)).innerText = `lat:${lat},lng:${lng}`;
+              document.getElementById("latlng" + window.sessionStorage["session"].substr(7, 4)).dataset["latlng"] = `{"lat":${lat},"lng":${lng}}`;
+            }
+
+          } else {
+            console.log(status);
+          }
+          google.maps.event.addListener(marker, 'dragstart', function (MouseEvent) {
+            timer = setTimeout(function () {
+            }, 2000)
+            getwhere(MouseEvent.latLng.lat(), MouseEvent.latLng.lng(), marker);
+          });
+        });
+      }
+      function showAddressOfResult(address, result, marker) {
+        var popupContent = result.formatted_address;
+        if (typeof (address) === "string") {
+          document.getElementById(address).value = popupContent;
+
+        } else {
+          address.value = popupContent;
+        }
+      }
+      function getwhere(lat, lng, marker) {
+        var geocoder = new google.maps.Geocoder();
+        // google.maps.LatLng 物件
+        var coord = new google.maps.LatLng(lat, lng);
+        // 傳入 latLng 資訊至 geocoder.geocode
+        // setTimeout(function () {
+        geocoder.geocode({ 'latLng': coord }, function (results, status) {
+          if (status === google.maps.GeocoderStatus.OK) {
+            // 如果有資料就會回傳
+            if (results) {
+              showAddressOfResult(window.sessionStorage["session"], results[0], marker);
+              document.getElementById("latlng" + window.sessionStorage["session"].substr(7, 4)).innerText = `lat:${lat},lng:${lng}`;
+              document.getElementById("latlng" + window.sessionStorage["session"].substr(7, 4)).dataset["latlng"] = `{"lat":${lat},"lng":${lng}}`;
+            }
+          }
+          // 經緯度資訊錯誤
+          else {
+            alert("Reverse Geocoding failed because: " + status);
+          }
+        });
+        // }, 1000);
+      }
+      function route() {
+        var request = {
+          origin: JSON.parse(document.getElementById("latlngFrom").dataset['latlng']),
+          destination: JSON.parse(document.getElementById("latlngTo").dataset['latlng']),
+          travelMode: 'DRIVING'
+        };
+        tester = request;
+        directionsService.route(request, function (result, status) {
+          if (status == 'OK') {
+            // 回傳路線上每個步驟的細節
+            console.log(result.routes[0].legs[0].steps);
+            console.log(request);
+            directionsDisplay.setDirections(result);
+            var route = result.routes[0];
+            // 取得距離
+            var Distance=route.legs[0].distance.text;
+            // 取得路徑大約時間
+            var Duration=route.legs[0].duration.text;
+            document.getElementById('msg').innerHTML = `總距離為：${Distance} , 預計時間：${Duration}` ;
+          } else {
+            console.log(status);
+          }
+        });
+        directionsDisplay.setMap(map);
+      }
+    </script>
+  </footer>
+</body>
+
+</html>
